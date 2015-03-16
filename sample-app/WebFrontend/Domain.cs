@@ -1,30 +1,49 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-using Edument.CQRS;
+﻿using Cafe;
 using CafeReadModels;
-using Cafe.Tab;
+using OrigoDB.Core;
+using OrigoDB.Core.Test;
 
 namespace WebFrontend
 {
+
+    /// <summary>
+    /// Domain facade 
+    /// </summary>
     public static class Domain
     {
-        public static MessageDispatcher Dispatcher;
+        public static CommandDispatcher Dispatcher;
         public static IOpenTabQueries OpenTabQueries;
         public static IChefTodoListQueries ChefTodoListQueries;
 
         public static void Setup()
         {
-            Dispatcher = new MessageDispatcher(new InMemoryEventStore());
-            
-            Dispatcher.ScanInstance(new TabAggregate());
+            var config = EngineConfiguration.Create().WithInMemoryStore();
+            var engine = Engine.For<CafeModel>(config);
 
-            OpenTabQueries = new OpenTabs();
-            Dispatcher.ScanInstance(OpenTabQueries);
+            var adapter = new QueryAdapter(engine);
+            OpenTabQueries = adapter;
+            ChefTodoListQueries = adapter;
 
-            ChefTodoListQueries = new ChefTodoList();
-            Dispatcher.ScanInstance(ChefTodoListQueries);
+            Dispatcher = new CommandDispatcher(engine);
         }
     }
+
+    /// <summary>
+    /// Replaces the Edument.CQRS examples MessageDispatcher
+    /// </summary>
+    public class CommandDispatcher
+    {
+        private readonly IEngine<CafeModel> _engine;
+
+        public CommandDispatcher(IEngine<CafeModel> engine)
+        {
+            _engine = engine;
+        }
+
+        public void SendCommand(Command<CafeModel> command)
+        {
+            _engine.Execute(command);
+        }
+    }
+
 }

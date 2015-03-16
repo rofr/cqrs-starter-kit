@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using Cafe;
 
 namespace CafeReadModels
 {
     public interface IChefTodoListQueries
     {
-        List<ChefTodoList.TodoListGroup> GetTodoList();
+        List<TodoListGroup> GetTodoList();
     }
 }

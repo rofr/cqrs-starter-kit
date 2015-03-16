@@ -1,636 +1,642 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using Edument.CQRS;
+using Cafe;
 using NUnit.Framework;
-using Cafe.Tab;
-using Events.Cafe;
+using OrigoDB.Core;
 
 namespace CafeTests
 {
+
     [TestFixture]
-    public class TabTests : BDDTest<TabAggregate>
+    public class TabTests
     {
         private Guid testId;
         private int testTable;
         private string testWaiter;
-        private OrderedItem testDrink1;
-        private OrderedItem testDrink2;
-        private OrderedItem testFood1;
-        private OrderedItem testFood2;
+        private TabItem testDrink1;
+        private TabItem testDrink2;
+        private TabItem testFood1;
+        private TabItem testFood2;
+        private CafeModel model;
 
         [SetUp]
         public void Setup()
         {
+            model = new CafeModel();
+
             testId = Guid.NewGuid();
             testTable = 42;
             testWaiter = "Derek";
 
-            testDrink1 = new OrderedItem
+            testDrink1 = new Drink
             {
                 MenuNumber = 4,
                 Description = "Sprite",
-                Price = 1.50M,
-                IsDrink = true
+                Price = 1.50M
             };
-            testDrink2 = new OrderedItem
+            testDrink2 = new Drink
             {
                 MenuNumber = 10,
                 Description = "Beer",
-                Price = 2.50M,
-                IsDrink = true
+                Price = 2.50M
             };
 
-            testFood1 = new OrderedItem
+            testFood1 = new FoodItem
             {
                 MenuNumber = 16,
                 Description = "Beef Noodles",
-                Price = 7.50M,
-                IsDrink = false
+                Price = 7.50M
             };
-            testFood2 = new OrderedItem
+            testFood2 = new FoodItem
             {
                 MenuNumber = 25,
                 Description = "Vegetable Curry",
-                Price = 6.00M,
-                IsDrink = false
+                Price = 6.00M
             };
         }
 
         [Test]
         public void CanOpenANewTab()
         {
-            Test(
-                Given(),
-                When(new OpenTab
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                }),
-                Then(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                }));
+            var cmd = new OpenTab
+            {
+                Id = testId,
+                Waiter = testWaiter,
+                TableNumber = testTable
+            };
+            cmd.Execute(model);
+            var tab = model.Tabs[testId];
+            Assert.IsTrue(!tab.IsClosed);
         }
 
-        [Test]
-        public void CanNotOrderWithUnopenedTab()
+
+        private void Arrange(params Command<CafeModel>[] commands)
         {
-            Test(
-                Given(),
-                When(new PlaceOrder
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testDrink1 }
-                }),
-                ThenFailWith<TabNotOpen>());
+            try
+            {
+                foreach (var cmd in commands) cmd.Execute(model);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.StackTrace);
+                Assert.Fail("Preconditions failed");
+
+            }
+        }
+
+
+        private void Act(Command<CafeModel> command)
+        {
+            command.Execute(model);
+        }
+
+        [Test, ExpectedException(typeof(TabNotOpen))]
+        public void CanNotOrderWithClosedTab()
+        {
+            Arrange(
+                new OpenTab() { Id = testId },
+                new CloseTab { Id = testId, AmountPaid = 100 }
+                );
+
+            Act(new PlaceOrder
+            {
+                Id = testId,
+                Items = new List<TabItem> { testDrink1 }
+            });
+
         }
 
         [Test]
         public void CanPlaceDrinksOrder()
         {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                }),
-                When(new PlaceOrder
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testDrink1, testDrink2 }
-                }),
-                Then(new DrinksOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testDrink1, testDrink2 }
-                }));
+
+            Arrange(new OpenTab
+            {
+                Id = testId,
+                TableNumber = testTable,
+                Waiter = testWaiter
+            });
+            Act(new PlaceOrder
+            {
+                Id = testId,
+                Items = new List<TabItem> { testDrink1, testDrink2 }
+            });
+
+            var items = model.Tabs[testId].Items;
+            Assert.True(items.Contains(testDrink1));
+            Assert.True(items.Contains(testDrink2));
+            Assert.AreEqual(2, items.Count);
         }
 
         [Test]
-        public void CanPlaceFoodOrder()
+        public void Can_place_food_order()
         {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                }),
-                When(new PlaceOrder
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testFood1, testFood1 }
-                }),
-                Then(new FoodOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testFood1, testFood1 }
-                }));
+            Arrange(new OpenTab
+            {
+                Id = testId,
+                TableNumber = testTable,
+                Waiter = testWaiter
+            });
+            Act(new PlaceOrder
+            {
+                Id = testId,
+                Items = new List<TabItem> { testFood1, testFood2 }
+            });
+
+            var items = model.Tabs[testId].Items;
+            Assert.True(items.Contains(testFood1));
+            Assert.True(items.Contains(testFood2));
+            Assert.AreEqual(2, items.Count);
         }
 
         [Test]
         public void CanPlaceFoodAndDrinkOrder()
         {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                }),
-                When(new PlaceOrder
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testFood1, testDrink2 }
-                }),
-                Then(new DrinksOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testDrink2 }
-                },
-                new FoodOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testFood1 }
-                }));
+            Arrange(new OpenTab
+            {
+                Id = testId,
+                TableNumber = testTable,
+                Waiter = testWaiter
+            });
+            Act(new PlaceOrder
+            {
+                Id = testId,
+                Items = new List<TabItem> { testFood1, testDrink2 }
+            });
+
+            var items = model.Tabs[testId].Items;
+            Assert.True(items.Contains(testFood1));
+            Assert.True(items.Contains(testDrink2));
+            Assert.AreEqual(2, items.Count);
         }
 
         [Test]
         public void OrderedDrinksCanBeServed()
         {
-            Test(
-                Given(new TabOpened
+            Arrange(
+                new OpenTab
                 {
                     Id = testId,
                     TableNumber = testTable,
                     Waiter = testWaiter
                 },
-                new DrinksOrdered
+                new PlaceOrder
                 {
                     Id = testId,
-                    Items = new List<OrderedItem> { testDrink1, testDrink2 }
-                }),
-                When(new MarkDrinksServed
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testDrink1.MenuNumber, testDrink2.MenuNumber }
-                }),
-                Then(new DrinksServed
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testDrink1.MenuNumber, testDrink2.MenuNumber }
-                }));
+                    Items = new List<TabItem> { testDrink1, testDrink2 }
+                }
+            );
+            Act(new MarkDrinksServed
+            {
+                Id = testId,
+                MenuNumbers = new List<int> { testDrink1.MenuNumber, testDrink2.MenuNumber }
+            });
+
+            var items = model.Tabs[testId].Items;
+            Assert.True(items.Contains(testDrink1));
+            Assert.True(items.Contains(testDrink2));
+            Assert.AreEqual(2, items.Count(i => i.State == TabItemState.Served));
         }
 
-        [Test]
+        [Test, ExpectedException(typeof(DrinksNotOutstanding))]
         public void CanNotServeAnUnorderedDrink()
         {
-            Test(
-                Given(new TabOpened
+
+            Arrange(
+                new OpenTab()
                 {
                     Id = testId,
                     TableNumber = testTable,
                     Waiter = testWaiter
                 },
-                new DrinksOrdered
+                new PlaceOrder()
                 {
                     Id = testId,
-                    Items = new List<OrderedItem> { testDrink1 }
-                }),
-                When(new MarkDrinksServed
+                    Items = new List<TabItem> { testDrink1 }
+                });
+
+            Act(
+                new MarkDrinksServed
                 {
                     Id = testId,
                     MenuNumbers = new List<int> { testDrink2.MenuNumber }
-                }),
-                ThenFailWith<DrinksNotOutstanding>());
+                });
+
+
         }
 
-        [Test]
+        [Test, ExpectedException(typeof(DrinksNotOutstanding))]
         public void CanNotServeAnOrderedDrinkTwice()
         {
-            Test(
-                Given(new TabOpened
+
+            Arrange(
+                new OpenTab
                 {
                     Id = testId,
                     TableNumber = testTable,
                     Waiter = testWaiter
                 },
-                new DrinksOrdered
+                new PlaceOrder
                 {
                     Id = testId,
-                    Items = new List<OrderedItem> { testDrink1 }
+                    Items = new List<TabItem> { testDrink1, testDrink2 }
                 },
-                new DrinksServed
+                new MarkDrinksServed
                 {
                     Id = testId,
-                    MenuNumbers = new List<int> { testDrink1.MenuNumber }
-                }),
-                When(new MarkDrinksServed
+                    MenuNumbers = new List<int> { testDrink1.MenuNumber, testDrink2.MenuNumber }
+                });
+            Act(new MarkDrinksServed
                 {
                     Id = testId,
-                    MenuNumbers = new List<int> { testDrink1.MenuNumber }
-                }),
-                ThenFailWith<DrinksNotOutstanding>());
+                    MenuNumbers = new List<int> { testDrink1.MenuNumber, testDrink2.MenuNumber }
+                }
+            );
         }
 
         [Test]
         public void OrderedFoodCanBeMarkedPrepared()
         {
-            Test(
-                Given(new TabOpened
+            Arrange(
+                new OpenTab()
                 {
                     Id = testId,
                     TableNumber = testTable,
                     Waiter = testWaiter
                 },
-                new FoodOrdered
+                new PlaceOrder()
                 {
                     Id = testId,
-                    Items = new List<OrderedItem> { testFood1, testFood1 }
-                }),
-                When(new MarkFoodPrepared
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testFood1.MenuNumber, testFood1.MenuNumber }
-                }),
-                Then(new FoodPrepared
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testFood1.MenuNumber, testFood1.MenuNumber }
-                }));
+                    Items = new List<TabItem> { testFood1, testFood2 }
+                });
+
+            Act(new MarkFoodPrepared
+            {
+                Id = testId,
+                MenuNumbers = new List<int> { testFood1.MenuNumber, testFood2.MenuNumber }
+            });
+
+            var items = model.Tabs[testId].Items;
+            Assert.True(items.Contains(testFood1));
+            Assert.True(items.Contains(testFood2));
+            Assert.IsTrue(items.All(item => item.State == TabItemState.Prepared));
         }
 
-        [Test]
+        [Test, ExpectedException(typeof(FoodNotOutstanding))]
         public void FoodNotOrderedCanNotBeMarkedPrepared()
         {
-            Test(
-                Given(new TabOpened
+            Arrange(
+                new OpenTab()
                 {
                     Id = testId,
                     TableNumber = testTable,
                     Waiter = testWaiter
-                }),
-                When(new MarkFoodPrepared
+                },
+                new PlaceOrder()
                 {
                     Id = testId,
-                    MenuNumbers = new List<int> { testFood2.MenuNumber }
-                }),
-                ThenFailWith<FoodNotOutstanding>());
+                    Items = new List<TabItem> { testFood1 }
+                });
+
+            Act(new MarkFoodPrepared
+            {
+                Id = testId,
+                MenuNumbers = new List<int> { testFood1.MenuNumber, testFood2.MenuNumber }
+            });
         }
 
-        [Test]
+        [Test, ExpectedException(typeof(FoodNotOutstanding))]
         public void CanNotMarkFoodAsPreparedTwice()
         {
-            Test(
-                Given(new TabOpened
+            Arrange(
+                new OpenTab()
                 {
                     Id = testId,
                     TableNumber = testTable,
                     Waiter = testWaiter
                 },
-                new FoodOrdered
+                new PlaceOrder()
                 {
                     Id = testId,
-                    Items = new List<OrderedItem> { testFood1, testFood1 }
+                    Items = new List<TabItem> { testFood1 }
                 },
-                new FoodPrepared
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testFood1.MenuNumber, testFood1.MenuNumber }
-                }),
-                When(new MarkFoodPrepared
+                new MarkFoodPrepared
                 {
                     Id = testId,
                     MenuNumbers = new List<int> { testFood1.MenuNumber }
-                }),
-                ThenFailWith<FoodNotOutstanding>());
+                });
+
+
+            Act(new MarkFoodPrepared
+            {
+                Id = testId,
+                MenuNumbers = new List<int> { testFood1.MenuNumber }
+            });
         }
 
         [Test]
         public void CanServePreparedFood()
         {
-            Test(
-                Given(new TabOpened
+            Arrange(
+                new OpenTab()
                 {
                     Id = testId,
                     TableNumber = testTable,
                     Waiter = testWaiter
                 },
-                new FoodOrdered
+                new PlaceOrder()
                 {
                     Id = testId,
-                    Items = new List<OrderedItem> { testFood1, testFood2 }
+                    Items = new List<TabItem> { testFood1 }
                 },
-                new FoodPrepared
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testFood1.MenuNumber, testFood2.MenuNumber }
-                }),
-                When(new MarkFoodServed
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testFood2.MenuNumber, testFood1.MenuNumber }
-                }),
-                Then(new FoodServed
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testFood2.MenuNumber, testFood1.MenuNumber }
-                }));
-        }
-
-        [Test]
-        public void CanNotServePreparedFoodTwice()
-        {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                },
-                new FoodOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testFood1, testFood2 }
-                },
-                new FoodPrepared
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testFood1.MenuNumber, testFood2.MenuNumber }
-                },
-                new FoodServed
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testFood2.MenuNumber, testFood1.MenuNumber }
-                }),
-                When(new MarkFoodServed
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testFood2.MenuNumber, testFood1.MenuNumber }
-                }),
-                ThenFailWith<FoodNotPrepared>());
-        }
-
-        [Test]
-        public void CanNotServeUnorderedFood()
-        {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                },
-                new FoodOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testFood1 }
-                }),
-                When(new MarkFoodServed
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testFood2.MenuNumber }
-                }),
-                ThenFailWith<FoodNotPrepared>());
-        }
-
-        [Test]
-        public void CanNotServeOrderedButUnpreparedFood()
-        {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                },
-                new FoodOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testFood1 }
-                }),
-                When(new MarkFoodServed
+                new MarkFoodPrepared
                 {
                     Id = testId,
                     MenuNumbers = new List<int> { testFood1.MenuNumber }
-                }),
-                ThenFailWith<FoodNotPrepared>());
+                });
+
+            Act(
+                new MarkFoodServed
+                {
+                    Id = testId,
+                    MenuNumbers = new List<int> { testFood1.MenuNumber }
+                });
+
+            var items = model.Tabs[testId].Items;
+            Assert.True(items.Contains(testFood1));
+            Assert.AreEqual(1, items.Count(i => i.State == TabItemState.Served));
+        }
+
+
+        [Test, ExpectedException(typeof(FoodNotPrepared))]
+        public void CanNotServeUnorderedFood()
+        {
+            Arrange(new OpenTab
+            {
+                Id = testId,
+                TableNumber = testTable,
+                Waiter = testWaiter
+            });
+            Act(new MarkFoodServed
+            {
+                Id = testId,
+                MenuNumbers = new List<int>
+            {
+                testDrink1.MenuNumber
+            }
+            });
+        }
+
+        [Test, ExpectedException(typeof(FoodNotPrepared))]
+        public void CanNotServeOrderedButUnpreparedFood()
+        {
+            Arrange(
+                new OpenTab()
+                {
+                    Id = testId,
+                    TableNumber = testTable,
+                    Waiter = testWaiter
+                },
+                new PlaceOrder()
+                {
+                    Id = testId,
+                    Items = new List<TabItem> { testFood1 }
+                });
+
+            Act(
+                new MarkFoodServed
+                {
+                    Id = testId,
+                    MenuNumbers = new List<int> { testFood1.MenuNumber }
+                });
         }
 
         [Test]
         public void CanCloseTabByPayingExactAmount()
         {
-            Test(
-                Given(new TabOpened
+            Arrange(
+                new OpenTab()
                 {
                     Id = testId,
                     TableNumber = testTable,
                     Waiter = testWaiter
                 },
-                new FoodOrdered
+                new PlaceOrder()
                 {
                     Id = testId,
-                    Items = new List<OrderedItem> { testFood1, testFood2 }
+                    Items = new List<TabItem> { testFood1, testDrink2 }
                 },
-                new FoodPrepared
+                new MarkFoodPrepared
                 {
                     Id = testId,
-                    MenuNumbers = new List<int> { testFood1.MenuNumber, testFood2.MenuNumber }
+                    MenuNumbers = new List<int> { testFood1.MenuNumber }
                 },
-                new FoodServed
+                new MarkFoodServed
                 {
                     Id = testId,
-                    MenuNumbers = new List<int> { testFood2.MenuNumber, testFood1.MenuNumber }
-                }),
-                When(new CloseTab
+                    MenuNumbers = new List<int> { testFood1.MenuNumber }
+                },
+                new MarkDrinksServed()
                 {
                     Id = testId,
-                    AmountPaid = testFood1.Price + testFood2.Price
-                }),
-                Then(new TabClosed
-                {
-                    Id = testId,
-                    AmountPaid = testFood1.Price + testFood2.Price,
-                    OrderValue = testFood1.Price + testFood2.Price,
-                    TipValue = 0.00M
-                }));
+                    MenuNumbers = new List<int> { testDrink2.MenuNumber }
+                });
+
+            var exactAmount = testFood1.Price + testDrink2.Price;
+
+            Act(new CloseTab
+            {
+                Id = testId,
+                AmountPaid = exactAmount
+            });
+
+
+            var items = model.Tabs[testId].Items;
+            Assert.True(items.Contains(testFood1));
+            Assert.True(items.Contains(testDrink2));
+            Assert.AreEqual(2, items.Count(i => i.State == TabItemState.Served));
+            Assert.IsTrue(model.Tabs[testId].IsClosed);
+
         }
 
         [Test]
         public void CanCloseTabWithTip()
         {
-            Test(
-                Given(new TabOpened
+            Arrange(
+                new OpenTab()
                 {
                     Id = testId,
                     TableNumber = testTable,
                     Waiter = testWaiter
                 },
-                new DrinksOrdered
+                new PlaceOrder()
                 {
                     Id = testId,
-                    Items = new List<OrderedItem> { testDrink2 }
+                    Items = new List<TabItem> { testFood1, testDrink2 }
                 },
-                new DrinksServed
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testDrink2.MenuNumber }
-                }),
-                When(new CloseTab
-                {
-                    Id = testId,
-                    AmountPaid = testDrink2.Price + 0.50M
-                }),
-                Then(new TabClosed
-                {
-                    Id = testId,
-                    AmountPaid = testDrink2.Price + 0.50M,
-                    OrderValue = testDrink2.Price,
-                    TipValue = 0.50M
-                }));
-        }
-
-        [Test]
-        public void MustPayEnoughToCloseTab()
-        {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                },
-                new DrinksOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testDrink2 }
-                },
-                new DrinksServed
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testDrink2.MenuNumber }
-                }),
-                When(new CloseTab
-                {
-                    Id = testId,
-                    AmountPaid = testDrink2.Price - 0.50M
-                }),
-                ThenFailWith<MustPayEnough>());
-        }
-
-        [Test]
-        public void CanNotCloseTabTwice()
-        {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                },
-                new DrinksOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testDrink2 }
-                },
-                new DrinksServed
-                {
-                    Id = testId,
-                    MenuNumbers = new List<int> { testDrink2.MenuNumber }
-                },
-                new TabClosed
-                {
-                    Id = testId,
-                    AmountPaid = testDrink2.Price + 0.50M,
-                    OrderValue = testDrink2.Price,
-                    TipValue = 0.50M
-                }),
-                When(new CloseTab
-                {
-                    Id = testId,
-                    AmountPaid = testDrink2.Price
-                }),
-                ThenFailWith<TabNotOpen>());
-        }
-
-        [Test]
-        public void CanNotCloseTabWithUnservedDrinksItems()
-        {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                },
-                new DrinksOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testDrink2 }
-                }),
-                When(new CloseTab
-                {
-                    Id = testId,
-                    AmountPaid = testDrink2.Price
-                }),
-                ThenFailWith<TabHasUnservedItems>());
-        }
-
-        [Test]
-        public void CanNotCloseTabWithUnpreparedFoodItems()
-        {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                },
-                new FoodOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testFood1 }
-                }),
-                When(new CloseTab
-                {
-                    Id = testId,
-                    AmountPaid = testFood1.Price
-                }),
-                ThenFailWith<TabHasUnservedItems>());
-        }
-
-        [Test]
-        public void CanNotCloseTabWithUnservedFoodItems()
-        {
-            Test(
-                Given(new TabOpened
-                {
-                    Id = testId,
-                    TableNumber = testTable,
-                    Waiter = testWaiter
-                },
-                new FoodOrdered
-                {
-                    Id = testId,
-                    Items = new List<OrderedItem> { testFood1 }
-                },
-                new FoodPrepared
+                new MarkFoodPrepared
                 {
                     Id = testId,
                     MenuNumbers = new List<int> { testFood1.MenuNumber }
-                }),
-                When(new CloseTab
+                },
+                new MarkFoodServed
                 {
                     Id = testId,
-                    AmountPaid = testFood1.Price
-                }),
-                ThenFailWith<TabHasUnservedItems>());
+                    MenuNumbers = new List<int> { testFood1.MenuNumber }
+                },
+                new MarkDrinksServed()
+                {
+                    Id = testId,
+                    MenuNumbers = new List<int> { testDrink2.MenuNumber }
+                });
+
+            var exactAmount = testFood1.Price + testDrink2.Price;
+            var tip = 35;
+
+            Act(new CloseTab
+            {
+                Id = testId,
+                AmountPaid = exactAmount + tip
+            });
+
+
+            var items = model.Tabs[testId].Items;
+            Assert.True(items.Contains(testFood1));
+            Assert.True(items.Contains(testDrink2));
+            Assert.AreEqual(2, items.Count(i => i.State == TabItemState.Served));
+            Assert.IsTrue(model.Tabs[testId].IsClosed);
+        }
+
+        [Test, ExpectedException(typeof(MustPayEnough))]
+        public void MustPayEnoughToCloseTab()
+        {
+            Arrange(
+            new OpenTab()
+            {
+                Id = testId,
+                TableNumber = testTable,
+                Waiter = testWaiter
+            },
+            new PlaceOrder()
+            {
+                Id = testId,
+                Items = new List<TabItem> { testFood1, testDrink2 }
+            },
+            new MarkFoodPrepared
+            {
+                Id = testId,
+                MenuNumbers = new List<int> { testFood1.MenuNumber }
+            },
+            new MarkFoodServed
+            {
+                Id = testId,
+                MenuNumbers = new List<int> { testFood1.MenuNumber }
+            },
+            new MarkDrinksServed()
+            {
+                Id = testId,
+                MenuNumbers = new List<int> { testDrink2.MenuNumber }
+            });
+
+            var exactAmount = testFood1.Price + testDrink2.Price;
+
+            Act(new CloseTab
+            {
+                Id = testId,
+                AmountPaid = exactAmount - 10
+            });
+        }
+
+
+        [Test, ExpectedException(typeof(TabHasUnservedItems))]
+        public void CanNotCloseTabWithUnservedDrinksItems()
+        {
+            Arrange(
+                new OpenTab()
+                {
+                    Id = testId,
+                    TableNumber = testTable,
+                    Waiter = testWaiter
+                },
+                new PlaceOrder()
+                {
+                    Id = testId,
+                    Items = new List<TabItem> { testFood1, testDrink2 }
+                },
+                new MarkFoodPrepared
+                {
+                    Id = testId,
+                    MenuNumbers = new List<int> { testFood1.MenuNumber }
+                },
+                new MarkFoodServed
+                {
+                    Id = testId,
+                    MenuNumbers = new List<int> { testFood1.MenuNumber }
+                });
+
+            var exactAmount = testFood1.Price + testDrink2.Price;
+
+            Act(new CloseTab
+            {
+                Id = testId,
+                AmountPaid = exactAmount
+            });
+        }
+
+        [Test, ExpectedException(typeof(TabHasUnservedItems))]
+        public void CanNotCloseTabWithUnpreparedFoodItems()
+        {
+            Arrange(
+                new OpenTab
+                {
+                    Id = testId,
+                    TableNumber = testTable,
+                    Waiter = testWaiter
+                },
+                new PlaceOrder
+                {
+                    Id = testId,
+                    Items = new List<TabItem> { testFood1, testDrink2 }
+                });
+
+            var exactAmount = testFood1.Price + testDrink2.Price;
+
+            Act(new CloseTab
+            {
+                Id = testId,
+                AmountPaid = exactAmount
+            });
+        }
+
+        [Test, ExpectedException(typeof(TabHasUnservedItems))]
+        public void CanNotCloseTabWithUnservedFoodItems()
+        {
+            Arrange(
+                new OpenTab()
+                {
+                    Id = testId,
+                    TableNumber = testTable,
+                    Waiter = testWaiter
+                },
+                new PlaceOrder()
+                {
+                    Id = testId,
+                    Items = new List<TabItem> { testFood1, testDrink2 }
+                },
+                new MarkFoodPrepared
+                {
+                    Id = testId,
+                    MenuNumbers = new List<int> { testFood1.MenuNumber }
+                });
+
+            var exactAmount = testFood1.Price + testDrink2.Price;
+
+            Act(new CloseTab
+            {
+                Id = testId,
+                AmountPaid = exactAmount
+            });
         }
     }
 }

@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web;
 using System.Web.Mvc;
-using Cafe.Tab;
+using Cafe;
 using WebFrontend.ActionFilters;
 using WebFrontend.Models;
 using System.Text.RegularExpressions;
@@ -19,9 +18,14 @@ namespace WebFrontend.Controllers
         }
 
         [HttpPost]
-        public ActionResult Open(OpenTab cmd)
+        public ActionResult Open(OpenTabModel model)
         {
-            cmd.Id = Guid.NewGuid();
+            var cmd = new OpenTab
+            {
+                Id = Guid.NewGuid(), 
+                Waiter = model.Waiter, 
+                TableNumber = model.TableNumber
+            };
             Domain.Dispatcher.SendCommand(cmd);
             return RedirectToAction("Order", new { id = cmd.TableNumber });
         }
@@ -48,17 +52,17 @@ namespace WebFrontend.Controllers
         [HttpPost]
         public ActionResult Order(int id, OrderModel order)
         {
-            var items = new List<Events.Cafe.OrderedItem>();
+            var items = new List<TabItem>();
             var menuLookup = StaticData.Menu.ToDictionary(k => k.MenuNumber, v => v);
             foreach (var item in order.Items)
-                for (int i = 0; i < item.NumberToOrder; i++)
-                    items.Add(new Events.Cafe.OrderedItem
-                    {
-                        MenuNumber = item.MenuNumber,
-                        Description = menuLookup[item.MenuNumber].Description,
-                        Price = menuLookup[item.MenuNumber].Price,
-                        IsDrink = menuLookup[item.MenuNumber].IsDrink
-                    });
+                for (var i = 0; i < item.NumberToOrder; i++)
+                {
+                    var tabItem = menuLookup[item.MenuNumber].IsDrink ? (TabItem) new Drink() : new FoodItem();
+                    tabItem.MenuNumber = item.MenuNumber;
+                    tabItem.Description = menuLookup[item.MenuNumber].Description;
+                    tabItem.Price = menuLookup[item.MenuNumber].Price;
+                    items.Add(tabItem);
+                }
             
             Domain.Dispatcher.SendCommand(new PlaceOrder
             {

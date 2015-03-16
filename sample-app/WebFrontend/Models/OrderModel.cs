@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
+﻿using System.Collections.Generic;
 
 namespace WebFrontend.Models
 {
@@ -15,5 +12,11 @@ namespace WebFrontend.Models
         }
 
         public List<OrderItem> Items { get; set; }
+    }
+
+    public class OpenTabModel
+    {
+        public string Waiter { get; set; }
+        public int TableNumber { get; set; }
     }
 }

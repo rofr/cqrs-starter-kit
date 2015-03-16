@@ -1,0 +1,45 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Class Name="Cafe.Drink">
+    <Position X="3.75" Y="3.75" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Properties" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>AAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAA=</HashCode>
+      <FileName>Entities\Drink.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Cafe.FoodItem">
+    <Position X="5.75" Y="3.75" Width="1.5" />
+    <Compartments>
+      <Compartment Name="Properties" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>AAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAA=</HashCode>
+      <FileName>Entities\FoodItem.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Cafe.Tab">
+    <Position X="8" Y="0.75" Width="1.75" />
+    <TypeIdentifier>
+      <HashCode>AAACAAAAAAAACAAgAAAAAAAAAAAAAGAAAACAAAAAAAE=</HashCode>
+      <FileName>Entities\Tab.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Cafe.TabItem">
+    <Position X="4.75" Y="0.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAEAAAAQAgAAAAAAAAQAAAAAAAAAAAAAAABABAAAA=</HashCode>
+      <FileName>Entities\TabItem.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Enum Name="Cafe.TabItemState">
+    <Position X="2.5" Y="0.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>EAAAAAAAAAAAAAAEgAAAAAAAAAAAAAAAAAAAAgAAAAA=</HashCode>
+      <FileName>Entities\TabItemState.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Font Name="Segoe UI" Size="9" />
+</ClassDiagram>
